@@ -7,49 +7,72 @@ from sensor_msgs.msg import Image, PointCloud
 from geometry_msgs.msg import PoseStamped
 from message_filters import ApproximateTimeSynchronizer, Subscriber
 
-from pathlib import Path
-
-from .MessageFactory import to_stamped_pose, from_image, to_pointcloud
+from .MessageFactory import from_stamped_pose, from_image, from_pointcloud
 
 
 class MACVO_visualizer_Node(Node):
     NODENAME = "macvo_visualizer"
     TIMELINE = "ros_time_ns"
     
-    def __init__(self, imageL_topic: str, imageR_topic: str):
+    def __init__(self, image_topic: tuple[str, str] | None, pose_topic: str, map_topic: str | None = None):
         super().__init__(self.NODENAME)
-        rr.init(self.NODENAME)
+        rr.init(self.NODENAME, spawn=True)
         rr.set_time_sequence(self.TIMELINE, 0)
         rr.log("/log", rr.TextLog("Rerun session initialized"))
         
-        self.imageL_sub = Subscriber(self, Image, imageL_topic, qos_profile=10)
-        self.imageR_sub = Subscriber(self, Image, imageR_topic, qos_profile=10)
+        if image_topic is not None:
+            imageL_topic: str; imageR_topic: str
+            imageL_topic, imageR_topic = image_topic
+
+            self.imageL_sub = Subscriber(self, Image, imageL_topic, qos_profile=1)
+            self.imageR_sub = Subscriber(self, Image, imageR_topic, qos_profile=1)
+            self.sync_stereo = ApproximateTimeSynchronizer(
+                [self.imageL_sub, self.imageR_sub], queue_size=2, slop=0.1
+            )
+            self.sync_stereo.registerCallback(self.receive_frame)
+
+        self.pose_sub   = self.create_subscription(PoseStamped, pose_topic, callback=self.receive_pose, qos_profile=1)
         
-        self.sync_stereo = ApproximateTimeSynchronizer(
-            [self.imageL_sub, self.imageR_sub], queue_size=2, slop=0.1
-        )
-        self.sync_stereo.registerCallback(self.receive_frame)
-        
+        if map_topic is not None:
+            self.map_sub    = self.create_subscription(PointCloud, map_topic, callback=self.receive_map, qos_profile=1)
     
     def receive_frame(self, msg_L: Image, msg_R: Image) -> None:
         rr.set_time_nanos(self.TIMELINE, Time.from_msg(msg_L.header.stamp).nanoseconds)
         
-        imageL = from_image(msg_L)
-        imageR = from_image(msg_R)
+        imageL = from_image(msg_L)[..., :3][..., ::-1]
+        imageR = from_image(msg_R)[..., :3][..., ::-1]
         self.get_logger().info(f"Receive: Left={imageL.shape}, Right={imageR.shape}")
 
         rr.log("/world/drone/cam/imgL", rr.Image(imageL).compress())
         rr.log("/world/drone/cam/imgR", rr.Image(imageR).compress())
+
+    def receive_pose(self, pose: PoseStamped) -> None:
+        pose, _, time = from_stamped_pose(pose)
+
+        rr.set_time_nanos(self.TIMELINE, Time.from_msg(time).nanoseconds)
+        rr.log("/world/drone/cam/imgL", rr.Transform3D(
+            translation=pose.translation().squeeze().numpy(),
+            rotation=rr.datatypes.Quaternion(xyzw=pose.rotation().squeeze().numpy())
+        ))
+
+    def receive_map(self, map: PointCloud) -> None:
+        position, _, time = from_pointcloud(map)
+        rr.set_time_nanos(self.TIMELINE, Time.from_msg(time).nanoseconds)
+        rr.log("/world/map", rr.Points3D(position.numpy()))
 
 
 def main():
     rclpy.init()
     
     node = MACVO_visualizer_Node(
-        imageL_topic="/zed/zed_node/rgb/image_rect_color",
-        imageR_topic="/zed/zed_node/right/image_rect_color",
+        image_topic=(
+            "/zed/zed_node/rgb/image_rect_color",
+            "/zed/zed_node/right/image_rect_color"
+        ),
+        pose_topic="/macvo/pose",
+        map_topic ="/macvo/map"
     )
-    print('MACVO Node created.')
+    print('MACVO Visualization Node created.')
     
     rclpy.spin(node)
     
@@ -59,3 +82,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+

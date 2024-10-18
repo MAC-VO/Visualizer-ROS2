@@ -79,6 +79,20 @@ def to_stamped_pose(pose: pp.LieTensor | torch.Tensor, frame_id: str, time: Time
     return out_msg
 
 
+def from_stamped_pose(msg: geometry_msgs.PoseStamped) -> tuple[pp.LieTensor, str, Time]:
+    pose = pp.SE3(torch.tensor([
+        msg.pose.position.x,
+        msg.pose.position.y,
+        msg.pose.position.z,
+
+        msg.pose.orientation.x,
+        msg.pose.orientation.y,
+        msg.pose.orientation.z,
+        msg.pose.orientation.w
+    ]))
+    return pose, msg.header.frame_id, msg.header.stamp
+
+
 def from_image(msg: sensor_msgs.Image) -> np.ndarray:
     if msg.encoding not in _name_to_dtypes:
         raise KeyError(f"Unsupported image encoding {msg.encoding}")
@@ -122,3 +136,15 @@ def to_pointcloud(position: torch.Tensor, keypoints: torch.Tensor, frame_id: str
     ]
     
     return out_msg
+
+
+def from_pointcloud(msg: sensor_msgs.PointCloud) -> tuple[torch.Tensor, str, Time]:
+    """
+    Returns
+        position    a Nx3 pytorch Tensor (dtype=float)
+        frame_id
+        stamp       Time stamp for the point cloud
+    """
+    position = torch.tensor([[pt.x, pt.y, pt.z] for pt in msg.points])
+
+    return position, msg.header.frame_id, msg.header.stamp
