@@ -19,6 +19,7 @@ class MACVO_visualizer_Node(Node):
         rr.init(self.NODENAME, spawn=True)
         rr.set_time_sequence(self.TIMELINE, 0)
         rr.log("/log", rr.TextLog("Rerun session initialized"))
+        rr.log("/", rr.ViewCoordinates(xyz=rr.ViewCoordinates.FRD), timeless=True)
         
         if image_topic is not None:
             imageL_topic: str; imageR_topic: str
@@ -32,6 +33,7 @@ class MACVO_visualizer_Node(Node):
             self.sync_stereo.registerCallback(self.receive_frame)
 
         self.pose_sub   = self.create_subscription(PoseStamped, pose_topic, callback=self.receive_pose, qos_profile=1)
+        self.prev_position = None
         
         if map_topic is not None:
             self.map_sub    = self.create_subscription(PointCloud, map_topic, callback=self.receive_map, qos_profile=1)
@@ -43,22 +45,26 @@ class MACVO_visualizer_Node(Node):
         imageR = from_image(msg_R)[..., :3][..., ::-1]
         self.get_logger().info(f"Receive: Left={imageL.shape}, Right={imageR.shape}")
 
-        rr.log("/world/drone/cam/imgL", rr.Image(imageL).compress())
-        rr.log("/world/drone/cam/imgR", rr.Image(imageR).compress())
+        rr.log("/world/drone/cam/imgL", rr.Image(imageL), timeless=True)
+        rr.log("/world/drone/cam/imgR", rr.Image(imageR), timeless=True)
 
     def receive_pose(self, pose: PoseStamped) -> None:
-        pose, _, time = from_stamped_pose(pose)
+        pp_pose, _, time = from_stamped_pose(pose)
+        if self.prev_position is None: self.prev_position = pp_pose.translation()
 
         rr.set_time_nanos(self.TIMELINE, Time.from_msg(time).nanoseconds)
         rr.log("/world/drone/cam/imgL", rr.Transform3D(
-            translation=pose.translation().squeeze().numpy(),
-            rotation=rr.datatypes.Quaternion(xyzw=pose.rotation().squeeze().numpy())
+            translation=pp_pose.translation().squeeze().numpy(),
+            rotation=rr.datatypes.Quaternion(xyzw=pp_pose.rotation().squeeze().numpy()),
+            axis_length=1.0
         ))
+        rr.log("/world/trajectory", rr.LineStrips3D([self.prev_position.numpy().tolist(), pp_pose.translation().numpy().list()]))
+        self.prev_position = pp_pose.translation()
 
     def receive_map(self, map: PointCloud) -> None:
-        position, _, time = from_pointcloud(map)
+        position, color, _, time = from_pointcloud(map)
         rr.set_time_nanos(self.TIMELINE, Time.from_msg(time).nanoseconds)
-        rr.log("/world/map", rr.Points3D(position.numpy()))
+        rr.log("/world/map", rr.Points3D(position.numpy(), colors=color.int().numpy()))
 
 
 def main():
