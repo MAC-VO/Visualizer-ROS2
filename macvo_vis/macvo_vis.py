@@ -1,5 +1,8 @@
 import rclpy
+from packaging import version
+
 import rerun as rr
+assert version.parse(rr.__version__) >= version.parse("0.22.0")
 
 from rclpy.node import Node
 from rclpy.time import Time
@@ -19,7 +22,7 @@ class MACVO_visualizer_Node(Node):
         rr.init(self.NODENAME, spawn=True)
         rr.set_time_sequence(self.TIMELINE, 0)
         rr.log("/log", rr.TextLog("Rerun session initialized"))
-        rr.log("/", rr.ViewCoordinates(xyz=rr.ViewCoordinates.FRD), timeless=True)
+        rr.log("/", rr.ViewCoordinates(xyz=rr.ViewCoordinates.FRD), static=True)
         
         if image_topic is not None:
             imageL_topic: str; imageR_topic: str
@@ -32,11 +35,17 @@ class MACVO_visualizer_Node(Node):
             )
             self.sync_stereo.registerCallback(self.receive_frame)
 
-        self.pose_sub   = self.create_subscription(PoseStamped, pose_topic, callback=self.receive_pose, qos_profile=1)
+        self.pose_sub   = self.create_subscription(
+            PoseStamped, pose_topic,
+            callback=self.receive_pose, qos_profile=1
+        )
         self.prev_position = None
         
         if map_topic is not None:
-            self.map_sub    = self.create_subscription(PointCloud, map_topic, callback=self.receive_map, qos_profile=1)
+            self.map_sub = self.create_subscription(
+                PointCloud, map_topic,
+                callback=self.receive_map, qos_profile=1
+            )
     
     def receive_frame(self, msg_L: Image, msg_R: Image) -> None:
         rr.set_time_nanos(self.TIMELINE, Time.from_msg(msg_L.header.stamp).nanoseconds)
@@ -45,8 +54,8 @@ class MACVO_visualizer_Node(Node):
         imageR = from_image(msg_R)[..., :3][..., ::-1]
         self.get_logger().info(f"Receive: Left={imageL.shape}, Right={imageR.shape}")
 
-        rr.log("/world/drone/cam/imgL", rr.Image(imageL), timeless=True)
-        rr.log("/world/drone/cam/imgR", rr.Image(imageR), timeless=True)
+        rr.log("/world/drone/cam/imgL", rr.Image(imageL), static=True)
+        rr.log("/world/drone/cam/imgR", rr.Image(imageR), static=True)
 
     def receive_pose(self, pose: PoseStamped) -> None:
         pp_pose, _, time = from_stamped_pose(pose)

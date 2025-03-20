@@ -138,13 +138,15 @@ def to_pointcloud(position: torch.Tensor, keypoints: torch.Tensor, frame_id: str
     return out_msg
 
 
-def from_pointcloud(msg: sensor_msgs.PointCloud) -> tuple[torch.Tensor, str, Time]:
+def from_pointcloud(msg: sensor_msgs.PointCloud) -> tuple[torch.Tensor, torch.Tensor, str, Time]:
     """
     Returns
         position    a Nx3 pytorch Tensor (dtype=float)
+        color       a Nx3 pytorch Tensor (dtype=uint8)
         frame_id
         stamp       Time stamp for the point cloud
     """
     position = torch.tensor([[pt.x, pt.y, pt.z] for pt in msg.points])
+    color    = torch.stack([torch.tensor(channel.values) for channel in msg.channels], dim=-1)
 
-    return position, msg.header.frame_id, msg.header.stamp
+    return position, color, msg.header.frame_id, msg.header.stamp
