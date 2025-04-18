@@ -54,7 +54,7 @@ class MACVO_visualizer_Node(Node):
     
     def receive_compact_frame(self, msg: Image) -> None:
         rr.set_time_nanos(self.TIMELINE, Time.from_msg(msg.header.stamp).nanoseconds)
-        image = from_compressed_image(msg)[..., :3][:, :, ::-1].astype(np.uint8)
+        image = from_compressed_image(msg)[..., :3].astype(np.uint8)
         self.get_logger().info(f"Receive: {image.shape}")
         rr.log("/world/drone/cam/imgL", rr.Image(image), static=True)
     
