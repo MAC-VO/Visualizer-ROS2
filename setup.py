@@ -20,7 +20,8 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'macvo_vis = macvo_vis.macvo_vis:main',
+            'simple_vis = macvo_vis.same_device:main',
+            'cross_vis = macvo_vis.cross_device:main'
         ],
     },
 )

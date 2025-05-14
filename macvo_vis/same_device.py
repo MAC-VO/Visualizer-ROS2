@@ -10,7 +10,7 @@ from sensor_msgs.msg import Image, PointCloud
 from geometry_msgs.msg import PoseStamped
 from message_filters import ApproximateTimeSynchronizer, Subscriber
 
-from .MessageFactory import from_stamped_pose, from_image, from_pointcloud
+from .bridge import from_stamped_pose, from_image, from_pointcloud
 
 
 class MACVO_visualizer_Node(Node):
