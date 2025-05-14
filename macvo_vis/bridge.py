@@ -106,6 +106,13 @@ def from_image(msg: sensor_msgs.Image) -> np.ndarray:
     data.strides = (msg.step, dtype.itemsize * channel, dtype.itemsize)
     return data
 
+def from_compressed_image(msg: sensor_msgs.CompressedImage) -> np.ndarray:
+    from PIL import Image
+    import io
+    data = io.BytesIO(msg.data)
+    img = Image.open(data)
+    return np.array(img)
+
 
 def to_pointcloud(position: torch.Tensor, keypoints: torch.Tensor, frame_id: str, time: Time) -> sensor_msgs.PointCloud:
     """
