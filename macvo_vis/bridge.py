@@ -154,6 +154,7 @@ def from_pointcloud(msg: sensor_msgs.PointCloud) -> tuple[torch.Tensor, torch.Te
         stamp       Time stamp for the point cloud
     """
     position = torch.tensor([[pt.x, pt.y, pt.z] for pt in msg.points])
-    color    = torch.stack([torch.tensor(channel.values) for channel in msg.channels], dim=-1)
+    ch = {c.name: np.asarray(c.values) for c in msg.channels}
+    color    = torch.tensor(np.stack([ch["r"], ch["g"], ch["b"]], axis=1).astype(np.uint8))
 
     return position, color, msg.header.frame_id, msg.header.stamp
